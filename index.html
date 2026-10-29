@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Bowen Hub</title>
+
+<!-- PWA: installability -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#2F5233" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Bowen Hub" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="icon" href="icons/icon-192.png" />
+<style>
+  :root {
+    --paper: #FBF7F0;
+    --ink: #1F1B16;
+    --ink-soft: #5B5347;
+    --green: #2F5233;
+    --green-soft: #E7EDE4;
+    --brick: #B4552F;
+    --line: #DDD5C7;
+    --card: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+
+  h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; margin: 0; }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 28px 20px 80px;
+  }
+
+  header.top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  header.top h1 {
+    font-size: 26px;
+    letter-spacing: 0.2px;
+  }
+
+  .top-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  header.top .tag {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  .install-btn {
+    background: var(--green);
+    color: var(--paper);
+    border: none;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .install-btn:hover { background: #24401F; }
+  .install-btn:focus-visible { outline: 2px solid var(--brick); outline-offset: 2px; }
+
+  .ios-hint {
+    background: var(--green-soft);
+    color: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 8px;
+    padding: 9px 13px;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+
+  /* Location bar */
+  .location-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    padding: 9px 13px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 14px;
+    background: var(--card);
+  }
+  .location-bar.granted { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+  .location-bar.denied { border-color: var(--brick); color: var(--brick); background: #FBEDE6; }
+  .location-bar .loc-text { display: flex; align-items: center; gap: 7px; }
+  .location-bar button.retry {
+    border: 1px solid currentColor;
+    background: none;
+    color: inherit;
+    font-size: 12.5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .location-bar button.retry:hover { opacity: 0.75; }
+
+  /* Search */
+  .search-block {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  input[type="text"] {
+    flex: 1;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 15px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  input[type="text"]:focus {
+    outline: 2px solid var(--green);
+    outline-offset: 1px;
+  }
+
+  button.go {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 8px;
+    padding: 0 18px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button.go:hover { background: var(--green); }
+  button.go:focus-visible { outline: 2px solid var(--brick); outline-offset: 2px; }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 12px;
+  }
+
+  .chip {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink-soft);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .chip:hover { border-color: var(--green); color: var(--green); }
+  .chip.active {
+    background: var(--green);
+    border-color: var(--green);
+    color: var(--paper);
+  }
+  .chip:focus-visible { outline: 2px solid var(--brick); outline-offset: 2px; }
+
+  .filter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .toggle-row input { accent-color: var(--green); }
+
+  .radius-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .radius-row select {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 13px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .radius-row select:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+
+  /* Results */
+  .results-meta {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 10px;
+    min-height: 18px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.12s ease;
+  }
+  .card:hover { border-color: var(--green); }
+  .card:focus-visible { outline: 2px solid var(--brick); outline-offset: 2px; }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .card-top h3 { font-size: 18px; }
+
+  .rating {
+    white-space: nowrap;
+    font-size: 14px;
+    color: var(--brick);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .card-sub {
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    margin-top: 4px;
+  }
+
+  .card-tags {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
+  .tag-pill {
+    background: var(--green-soft);
+    color: var(--green);
+    padding: 2px 9px;
+    border-radius: 999px;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--ink-soft);
+  }
+  .empty h3 { margin-bottom: 6px; color: var(--ink); }
+
+  /* Detail overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(31,27,22,0.4);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 10;
+  }
+  .overlay.open { display: flex; }
+
+  .sheet {
+    background: var(--paper);
+    width: 100%;
+    max-width: 640px;
+    max-height: 88vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    padding: 22px 20px 32px;
+    animation: slideUp 0.22s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sheet { animation: none; }
+  }
+  @keyframes slideUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .sheet-close {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--ink-soft);
+    float: right;
+  }
+  .sheet-close:hover { border-color: var(--ink); color: var(--ink); }
+
+  .sheet h2 { font-size: 24px; margin-bottom: 4px; padding-right: 40px; }
+  .sheet .meta-line { color: var(--ink-soft); font-size: 14px; margin-bottom: 14px; }
+
+  .sheet .desc { font-size: 15px; margin-bottom: 18px; }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 8px 12px;
+    font-size: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .info-grid dt { color: var(--ink-soft); }
+  .info-grid dd { margin: 0; }
+
+  .reviews-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .reviews-head h3 { font-size: 16px; }
+
+  .review {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .review:last-child { border-bottom: none; }
+  .review-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13.5px;
+    margin-bottom: 3px;
+  }
+  .review-name { font-weight: 600; }
+  .review-rating { color: var(--brick); }
+  .review-comment { font-size: 14px; color: var(--ink-soft); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); border: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Bowen Hub</h1>
+    <div class="top-right">
+      <button class="install-btn" id="installBtn" hidden>Install app</button>
+      <span class="tag">Local spots, picked for students</span>
+    </div>
+  </header>
+
+  <div class="ios-hint" id="iosHint" hidden>
+    📲 To install: tap <strong>Share</strong> → <strong>Add to Home Screen</strong>
+  </div>
+
+  <div class="location-bar" id="locationBar"></div>
+
+  <div class="search-block">
+    <div class="search-row">
+      <label class="sr-only" for="q">Search businesses</label>
+      <input type="text" id="q" placeholder="Search coffee, food, print, laundry…" />
+      <button class="go" id="searchBtn">Search</button>
+    </div>
+    <div class="chip-row" id="chips" role="group" aria-label="Filter by category"></div>
+    <div class="filter-row">
+      <label class="toggle-row">
+        <input type="checkbox" id="openNow" />
+        Open now
+      </label>
+      <label class="radius-row" for="radius">
+        Within
+        <select id="radius">
+          <option value="0">any distance</option>
+          <option value="500">500 m</option>
+          <option value="1000" selected>1 km</option>
+          <option value="3000">3 km</option>
+          <option value="10000">10 km</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="results-meta" id="resultsMeta" aria-live="polite"></div>
+  <div id="results"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────────────────
+   MOCK API LAYER
+   Shaped exactly like the real Bowen Hub backend's responses
+   (GET /businesses, GET /businesses/:id, GET /categories) so
+   swapping this for real fetch() calls later is a drop-in change.
+   ──────────────────────────────────────────────────────────── */
+
+const CATEGORIES = [
+  { id: 1, name: "Coffee & Cafes", slug: "coffee" },
+  { id: 2, name: "Restaurants", slug: "restaurants" },
+  { id: 3, name: "Groceries", slug: "groceries" },
+  { id: 4, name: "Print & Copy", slug: "print-copy" },
+  { id: 5, name: "Fitness", slug: "fitness" },
+  { id: 6, name: "Salons & Barbers", slug: "salons-barbers" },
+  { id: 7, name: "Bookstores", slug: "bookstores" },
+  { id: 8, name: "Laundry", slug: "laundry" },
+];
+
+const BUSINESSES = [
+  {
+    id: "b1", name: "Grackle Coffee Roasters", category_slug: "coffee", category_name: "Coffee & Cafes",
+    description: "Small-batch roaster two blocks off campus. Quiet upstairs seating, good for studying.",
+    address: "212 Elm St", phone: "(555) 019-2231", price_range: 2,
+    avg_rating: 4.6, review_count: 128, lat: 0.00310, lng: 0.00180,
+    hours: { mon: ["07:00","19:00"], tue: ["07:00","19:00"], wed: ["07:00","19:00"], thu: ["07:00","19:00"], fri: ["07:00","20:00"], sat: ["08:00","18:00"], sun: ["08:00","16:00"] },
+    reviews: [
+      { student_name: "Priya M.", rating: 5, comment: "Best oat milk latte near campus, and the upstairs is dead silent." },
+      { student_name: "Jon R.", rating: 4, comment: "A little pricey but worth it for finals week." },
+    ]
+  },
+  {
+    id: "b2", name: "Wolfline Diner", category_slug: "restaurants", category_name: "Restaurants",
+    description: "24-hour diner classic — pancakes at 2am, no judgment.", address: "88 University Ave",
+    phone: "(555) 019-4410", price_range: 1, avg_rating: 4.2, review_count: 341, lat: -0.00450, lng: 0.00390,
+    hours: { mon: ["00:00","23:59"], tue: ["00:00","23:59"], wed: ["00:00","23:59"], thu: ["00:00","23:59"], fri: ["00:00","23:59"], sat: ["00:00","23:59"], sun: ["00:00","23:59"] },
+    reviews: [
+      { student_name: "Alicia T.", rating: 5, comment: "Saved my life during finals week, open all night." },
+      { student_name: "Devon K.", rating: 3, comment: "Food's decent, service is slow on weekends." },
+    ]
+  },
+  {
+    id: "b3", name: "PrintSpot Copy Center", category_slug: "print-copy", category_name: "Print & Copy",
+    description: "Cheap printing, binding, and same-day poster printing for presentations.",
+    address: "14 Commerce Ln", phone: "(555) 019-7788", price_range: 1, avg_rating: 4.0, review_count: 76, lat: 0.00140, lng: -0.00120,
+    hours: { mon: ["08:00","18:00"], tue: ["08:00","18:00"], wed: ["08:00","18:00"], thu: ["08:00","18:00"], fri: ["08:00","17:00"], sat: ["10:00","14:00"], sun: [] },
+    reviews: [
+      { student_name: "Marcus L.", rating: 4, comment: "Fast turnaround on my thesis binding." },
+    ]
+  },
+  {
+    id: "b4", name: "Campus Corner Market", category_slug: "groceries", category_name: "Groceries",
+    description: "Small grocery with student essentials — instant noodles to fresh produce.",
+    address: "5 Elm St", phone: "(555) 019-3345", price_range: 2, avg_rating: 3.9, review_count: 202, lat: 0.00070, lng: 0.00050,
+    hours: { mon: ["07:00","23:00"], tue: ["07:00","23:00"], wed: ["07:00","23:00"], thu: ["07:00","23:00"], fri: ["07:00","23:00"], sat: ["08:00","23:00"], sun: ["08:00","22:00"] },
+    reviews: [
+      { student_name: "Wei S.", rating: 4, comment: "Convenient, but a bit more expensive than the big supermarket." },
+    ]
+  },
+  {
+    id: "b5", name: "Ironline Fitness", category_slug: "fitness", category_name: "Fitness",
+    description: "24/7 gym with a student discount and open squat racks (rare on this side of town).",
+    address: "301 Bell Ave", phone: "(555) 019-8820", price_range: 2, avg_rating: 4.4, review_count: 95, lat: -0.00680, lng: -0.00560,
+    hours: { mon: ["00:00","23:59"], tue: ["00:00","23:59"], wed: ["00:00","23:59"], thu: ["00:00","23:59"], fri: ["00:00","23:59"], sat: ["00:00","23:59"], sun: ["00:00","23:59"] },
+    reviews: [
+      { student_name: "Tanvir A.", rating: 5, comment: "Never crowded at 6am, staff is friendly." },
+    ]
+  },
+  {
+    id: "b6", name: "The Fade Room", category_slug: "salons-barbers", category_name: "Salons & Barbers",
+    description: "Walk-in barbershop, usually a short wait between classes.", address: "77 Chapel St",
+    phone: "(555) 019-6602", price_range: 2, avg_rating: 4.7, review_count: 210, lat: 0.00400, lng: -0.00330,
+    hours: { mon: [], tue: ["10:00","19:00"], wed: ["10:00","19:00"], thu: ["10:00","19:00"], fri: ["10:00","19:00"], sat: ["09:00","17:00"], sun: [] },
+    reviews: [
+      { student_name: "Kofi B.", rating: 5, comment: "Ask for Marcus, he's the best fade in town." },
+    ]
+  },
+  {
+    id: "b7", name: "Second Story Books", category_slug: "bookstores", category_name: "Bookstores",
+    description: "Used textbooks at half the campus bookstore price, plus a solid fiction section.",
+    address: "19 Elm St", phone: "(555) 019-1123", price_range: 1, avg_rating: 4.5, review_count: 88, lat: -0.00230, lng: 0.00060,
+    hours: { mon: ["09:00","20:00"], tue: ["09:00","20:00"], wed: ["09:00","20:00"], thu: ["09:00","20:00"], fri: ["09:00","20:00"], sat: ["10:00","18:00"], sun: ["12:00","17:00"] },
+    reviews: [
+      { student_name: "Grace H.", rating: 5, comment: "They buy back textbooks too, saved me so much money." },
+    ]
+  },
+  {
+    id: "b8", name: "SudsUp Laundry", category_slug: "laundry", category_name: "Laundry",
+    description: "Coin and card laundromat, drop-off service available for $1/lb.",
+    address: "40 Bell Ave", phone: "(555) 019-5567", price_range: 1, avg_rating: 3.7, review_count: 54, lat: 0.00520, lng: 0.00610,
+    hours: { mon: ["06:00","22:00"], tue: ["06:00","22:00"], wed: ["06:00","22:00"], thu: ["06:00","22:00"], fri: ["06:00","22:00"], sat: ["06:00","22:00"], sun: ["06:00","22:00"] },
+    reviews: [
+      { student_name: "Sam O.", rating: 4, comment: "Drop-off service is a lifesaver during midterms." },
+    ]
+  },
+];
+
+// Default fallback origin (used only until we know the visitor's real
+// location, or if they decline location access). Offsets above are in
+// degrees relative to this point, small enough to stay realistic (~0-1km).
+const DEFAULT_ORIGIN = { lat: 35.7796, lng: -78.6382 };
+
+// Bake absolute lat/lng onto each business from the small relative offsets above.
+BUSINESSES.forEach(b => {
+  b.lat = DEFAULT_ORIGIN.lat + b.lat;
+  b.lng = DEFAULT_ORIGIN.lng + b.lng;
+});
+
+// Haversine distance in meters — same formula PostGIS's ST_Distance
+// approximates for geography points, so behavior matches the real backend.
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Simulates GET /api/v1/businesses?q=&category=&openNow=&lat=&lng=&radius=
+function mockSearch({ q, category, openNow, origin, radiusM }) {
+  const now = new Date();
+  const dayKeys = ["sun","mon","tue","wed","thu","fri","sat"];
+  const today = dayKeys[now.getDay()];
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  function isOpenNow(hours) {
+    const range = hours[today];
+    if (!range || range.length !== 2) return false;
+    const [start, end] = range.map(t => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    });
+    return nowMinutes >= start && nowMinutes <= end;
+  }
+
+  return BUSINESSES
+    .map(b => ({ ...b, distance_m: Math.round(haversineMeters(origin.lat, origin.lng, b.lat, b.lng)) }))
+    .filter(b => {
+      if (category && b.category_slug !== category) return false;
+      if (q && !b.name.toLowerCase().includes(q.toLowerCase()) && !b.description.toLowerCase().includes(q.toLowerCase())) return false;
+      if (openNow && !isOpenNow(b.hours)) return false;
+      if (radiusM && b.distance_m > radiusM) return false;
+      return true;
+    })
+    .sort((a, b) => a.distance_m - b.distance_m);
+}
+
+function mockGetById(id) {
+  return BUSINESSES.find(b => b.id === id);
+}
+
+/* ──────────────────────────────────────────
+   UI LOGIC
+   ────────────────────────────────────────── */
+
+const state = {
+  q: "",
+  category: null,
+  openNow: false,
+  radiusM: 1000,
+  origin: DEFAULT_ORIGIN,
+  locationStatus: "pending", // pending | granted | denied | unsupported
+};
+
+const chipsEl = document.getElementById("chips");
+const resultsEl = document.getElementById("results");
+const resultsMetaEl = document.getElementById("resultsMeta");
+const qInput = document.getElementById("q");
+const openNowInput = document.getElementById("openNow");
+const radiusInput = document.getElementById("radius");
+const locationBarEl = document.getElementById("locationBar");
+const overlay = document.getElementById("overlay");
+const sheet = document.getElementById("sheet");
+
+/* ── Geolocation ──────────────────────────────────────────── */
+
+function renderLocationBar() {
+  locationBarEl.className = "location-bar";
+  if (state.locationStatus === "granted") {
+    locationBarEl.classList.add("granted");
+    locationBarEl.innerHTML = `<span class="loc-text">📍 Showing places near your current location</span>`;
+  } else if (state.locationStatus === "denied") {
+    locationBarEl.classList.add("denied");
+    locationBarEl.innerHTML = `
+      <span class="loc-text">📍 Location access denied — showing places near campus center instead</span>
+      <button class="retry" id="retryLocBtn">Try again</button>`;
+  } else if (state.locationStatus === "unsupported") {
+    locationBarEl.innerHTML = `<span class="loc-text">📍 Your browser doesn't support location — showing places near campus center</span>`;
+  } else {
+    locationBarEl.innerHTML = `<span class="loc-text">📍 Finding your location…</span>`;
+  }
+
+  const retryBtn = document.getElementById("retryLocBtn");
+  if (retryBtn) retryBtn.onclick = requestLocation;
+}
+
+function requestLocation() {
+  state.locationStatus = "pending";
+  renderLocationBar();
+
+  if (!("geolocation" in navigator)) {
+    state.locationStatus = "unsupported";
+    renderLocationBar();
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      state.origin = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      };
+      state.locationStatus = "granted";
+      renderLocationBar();
+      runSearch();
+    },
+    () => {
+      // Denied, timed out, or unavailable — fall back gracefully, don't block the page.
+      state.origin = DEFAULT_ORIGIN;
+      state.locationStatus = "denied";
+      renderLocationBar();
+      runSearch();
+    },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+  );
+}
+
+function renderChips() {
+  chipsEl.innerHTML = "";
+  const allChip = document.createElement("button");
+  allChip.className = "chip" + (state.category === null ? " active" : "");
+  allChip.textContent = "All";
+  allChip.onclick = () => { state.category = null; renderChips(); runSearch(); };
+  chipsEl.appendChild(allChip);
+
+  CATEGORIES.forEach(cat => {
+    const chip = document.createElement("button");
+    chip.className = "chip" + (state.category === cat.slug ? " active" : "");
+    chip.textContent = cat.name;
+    chip.onclick = () => { state.category = cat.slug; renderChips(); runSearch(); };
+    chipsEl.appendChild(chip);
+  });
+}
+
+function formatDistance(m) {
+  return m < 1000 ? `${m}m away` : `${(m / 1000).toFixed(1)}km away`;
+}
+
+function priceLabel(n) {
+  return "$".repeat(n || 1);
+}
+
+function renderResults(list) {
+  resultsEl.innerHTML = "";
+
+  if (list.length === 0) {
+    resultsEl.innerHTML = `
+      <div class="empty">
+        <h3>No spots match that search</h3>
+        <p>Try a different category or clear the search box.</p>
+      </div>`;
+    return;
+  }
+
+  list.forEach(b => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `View details for ${b.name}`);
+    card.innerHTML = `
+      <div class="card-top">
+        <h3>${b.name}</h3>
+        <span class="rating">★ ${b.avg_rating.toFixed(1)}</span>
+      </div>
+      <div class="card-sub">${b.category_name} · ${priceLabel(b.price_range)} · ${formatDistance(b.distance_m)}</div>
+      <div class="card-tags">
+        <span class="tag-pill">${b.review_count} reviews</span>
+      </div>
+    `;
+    card.onclick = () => openDetail(b.id);
+    card.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(b.id); } };
+    resultsEl.appendChild(card);
+  });
+}
+
+function runSearch() {
+  const results = mockSearch({
+    q: state.q,
+    category: state.category,
+    openNow: state.openNow,
+    origin: state.origin,
+    radiusM: state.radiusM,
+  });
+  resultsMetaEl.textContent = `${results.length} place${results.length === 1 ? "" : "s"} found`;
+  renderResults(results);
+}
+
+function dayHoursText(hours) {
+  const labels = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
+  return Object.entries(hours).map(([day, range]) => {
+    if (!range || range.length !== 2) return `${labels[day]}: closed`;
+    return `${labels[day]}: ${range[0]}–${range[1]}`;
+  }).join(" · ");
+}
+
+function openDetail(id) {
+  const b = mockGetById(id);
+  if (!b) return;
+
+  sheet.innerHTML = `
+    <button class="sheet-close" id="closeSheet" aria-label="Close details">✕</button>
+    <h2 id="sheetTitle">${b.name}</h2>
+    <div class="meta-line">${b.category_name} · ★ ${b.avg_rating.toFixed(1)} (${b.review_count} reviews) · ${priceLabel(b.price_range)}</div>
+    <p class="desc">${b.description}</p>
+    <dl class="info-grid">
+      <dt>Address</dt><dd>${b.address}</dd>
+      <dt>Phone</dt><dd>${b.phone}</dd>
+      <dt>Hours</dt><dd>${dayHoursText(b.hours)}</dd>
+    </dl>
+    <div class="reviews-head">
+      <h3>Reviews</h3>
+    </div>
+    ${b.reviews.map(r => `
+      <div class="review">
+        <div class="review-top">
+          <span class="review-name">${r.student_name}</span>
+          <span class="review-rating">★ ${r.rating}</span>
+        </div>
+        <div class="review-comment">${r.comment}</div>
+      </div>
+    `).join("")}
+  `;
+
+  overlay.classList.add("open");
+  document.getElementById("closeSheet").onclick = closeDetail;
+  document.getElementById("closeSheet").focus();
+}
+
+function closeDetail() {
+  overlay.classList.remove("open");
+}
+
+overlay.addEventListener("click", (e) => {
+  if (e.target === overlay) closeDetail();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && overlay.classList.contains("open")) closeDetail();
+});
+
+document.getElementById("searchBtn").onclick = () => {
+  state.q = qInput.value.trim();
+  runSearch();
+};
+qInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    state.q = qInput.value.trim();
+    runSearch();
+  }
+});
+openNowInput.onchange = () => {
+  state.openNow = openNowInput.checked;
+  runSearch();
+};
+
+radiusInput.onchange = () => {
+  state.radiusM = Number(radiusInput.value); // 0 means "any distance"
+  runSearch();
+};
+
+renderChips();
+renderLocationBar();
+runSearch();          // initial paint using the default campus-center origin
+requestLocation();    // then ask the browser for the real position and re-run
+
+/* ── PWA: service worker registration + install prompt ─────── */
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((err) => {
+      console.warn("Service worker registration failed:", err);
+    });
+  });
+}
+
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById("installBtn");
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  // Chrome/Android fires this when the app is installable — stash the event
+  // and show our own button instead of relying on the browser's default UI.
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  if (installBtn) installBtn.hidden = false;
+});
+
+if (installBtn) {
+  installBtn.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installBtn.hidden = true;
+  });
+}
+
+window.addEventListener("appinstalled", () => {
+  if (installBtn) installBtn.hidden = true;
+});
+
+// iOS Safari has no beforeinstallprompt API — detect iOS + "not already
+// installed" and show manual instructions instead of a broken button.
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+if (isIOS && !isStandalone) {
+  const hint = document.getElementById("iosHint");
+  if (hint) hint.hidden = false;
+}
+</script>
+
+</body>
+</html>
