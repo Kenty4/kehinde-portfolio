@@ -1,0 +1,800 @@
+import React, { useState, useEffect, useRef } from "react";
+
+// ---------- Helpers ----------
+const todayKey = () => new Date().toISOString().slice(0, 10);
+
+const dayLabel = () =>
+  new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+async function askClaude(prompt) {
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    const data = await res.json();
+    const text = data?.content
+      ?.map((b) => (b.type === "text" ? b.text : ""))
+      .join("")
+      .trim();
+    return text || "";
+  } catch (e) {
+    return "";
+  }
+}
+
+function tryParseJSON(text) {
+  try {
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+}
+
+// ---------- Storage (in-memory, since localStorage is unavailable) ----------
+function useStore() {
+  const ref = useRef({
+    reminders: [
+      { id: "r1", label: "Mum's birthday", date: "09-02", kind: "birthday" },
+      { id: "r2", label: "Refill contact lenses", date: null, kind: "restock" },
+    ],
+    nudgeLog: {}, // date -> { done: bool, skipped: bool }
+    breakLog: {}, // date -> count of breaks taken
+    streak: 0,
+  });
+  const [, force] = useState(0);
+  const set = (fn) => {
+    fn(ref.current);
+    force((n) => n + 1);
+  };
+  return [ref.current, set];
+}
+
+// ---------- Small UI atoms ----------
+function Section({ eyebrow, title, children }) {
+  return (
+    <div className="section">
+      {eyebrow && <div className="eyebrow">{eyebrow}</div>}
+      {title && <h2 className="section-title">{title}</h2>}
+      {children}
+    </div>
+  );
+}
+
+function Pill({ children }) {
+  return <span className="pill">{children}</span>;
+}
+
+// ---------- Main screens ----------
+
+const MEAL_DIRECTIONS = [
+  { key: "surprise", label: "Surprise me" },
+  { key: "lower_effort", label: "Even lower effort" },
+  { key: "warm", label: "Something warm" },
+  { key: "eating_out", label: "Eating out instead" },
+];
+
+const NUDGE_DIRECTIONS = [
+  { key: "surprise", label: "Surprise me" },
+  { key: "text_based", label: "Something I can text" },
+  { key: "in_person", label: "Something in person" },
+  { key: "old_friend", label: "About someone I've lost touch with" },
+];
+
+function TodayPage({ store, setStore, openBreath, view, setView }) {
+  const [decision, setDecision] = useState(null);
+  const [decisionHistory, setDecisionHistory] = useState([]);
+  const [loadingDecision, setLoadingDecision] = useState(false);
+  const [showMealOptions, setShowMealOptions] = useState(false);
+
+  const [nudge, setNudge] = useState(null);
+  const [nudgeHistory, setNudgeHistory] = useState([]);
+  const [loadingNudge, setLoadingNudge] = useState(false);
+  const [showNudgeOptions, setShowNudgeOptions] = useState(false);
+
+  const key = todayKey();
+  const nudgeState = store.nudgeLog[key] || {};
+
+  const fetchDecision = async (direction = "surprise") => {
+    setLoadingDecision(true);
+    setShowMealOptions(false);
+    const avoid = decisionHistory.length
+      ? `Avoid repeating these already-suggested dishes: ${decisionHistory.join(", ")}.`
+      : "";
+    const directionText = {
+      surprise: "Give a comforting, simple, specific suggestion.",
+      lower_effort: "Give something even lower effort than a typical home-cooked meal — minimal prep, minimal cleanup.",
+      warm: "Give something warm and cozy, ideal for a slow day.",
+      eating_out: "Suggest a type of place or cuisine to go grab, not something to cook.",
+    }[direction];
+    const prompt = `You are a gentle daily-decision assistant inside an app called "Check In".
+Give the person ONE small, low-stakes suggestion for "what to eat today" — a real dish or place, not a category. ${directionText} ${avoid}
+Respond ONLY with JSON, no preamble, no markdown fences:
+{"suggestion": "<one short sentence, specific>", "why": "<one short warm sentence, under 12 words>"}`;
+    const text = await askClaude(prompt);
+    const parsed = tryParseJSON(text);
+    const result = parsed || {
+      suggestion: "A simple veggie stir-fry with whatever's in the fridge.",
+      why: "Low effort, hard to get wrong.",
+    };
+    setDecision(result);
+    setDecisionHistory((h) => [...h, result.suggestion].slice(-5));
+    setLoadingDecision(false);
+  };
+
+  const fetchNudge = async (direction = "surprise") => {
+    setLoadingNudge(true);
+    setShowNudgeOptions(false);
+    const avoid = nudgeHistory.length
+      ? `Avoid repeating these already-suggested actions: ${nudgeHistory.join(" / ")}.`
+      : "";
+    const directionText = {
+      surprise: "Any real, doable micro-action for reaching another person.",
+      text_based: "Specifically something doable over text or a message.",
+      in_person: "Specifically something that happens in person, not over a screen.",
+      old_friend: "Specifically about reconnecting with someone they've lost touch with, not a recent contact.",
+    }[direction];
+    const prompt = `You are inside a caring, low-pressure daily companion app called "Check In".
+Generate ONE tiny, specific, low-stakes suggestion for reaching out to another real person today. ${directionText}
+Keep it under 18 words. Warm but plain, no therapy-speak, no exclamation points. ${avoid}
+Respond ONLY with JSON: {"nudge": "<the suggestion>"}`;
+    const text = await askClaude(prompt);
+    const parsed = tryParseJSON(text);
+    const result = parsed?.nudge || "Send one message to someone you've been meaning to reply to.";
+    setNudge(result);
+    setNudgeHistory((h) => [...h, result].slice(-5));
+    setLoadingNudge(false);
+  };
+
+  useEffect(() => {
+    fetchDecision();
+    fetchNudge();
+    // eslint-disable-next-line
+  }, []);
+
+  const markNudge = (done) => {
+    setStore((s) => {
+      s.nudgeLog[key] = { done, skipped: !done };
+      if (done) s.streak = (s.streak || 0) + 1;
+    });
+  };
+
+  const upcomingReminder = store.reminders[0];
+
+  return (
+    <>
+      <div className="today-hero">
+        <div className="today-date">{dayLabel()}</div>
+        <h1 className="today-heading">A page for today.</h1>
+      </div>
+
+      <Section eyebrow="One less choice">
+        <div className="card decision-card">
+          {loadingDecision ? (
+            <div className="skeleton-line" />
+          ) : (
+            <>
+              <div className="card-label">Today, eat —</div>
+              <div className="card-main">{decision?.suggestion}</div>
+              <div className="card-sub">{decision?.why}</div>
+
+              {!showMealOptions ? (
+                <div className="card-actions">
+                  <button className="btn-ghost" onClick={() => setShowMealOptions(true)}>
+                    Show other options
+                  </button>
+                </div>
+              ) : (
+                <div className="option-row">
+                  {MEAL_DIRECTIONS.map((d) => (
+                    <button
+                      key={d.key}
+                      className="btn-chip"
+                      onClick={() => fetchDecision(d.key)}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Section>
+
+      <Section eyebrow="Worth remembering">
+        <div className="card reminder-card">
+          {store.reminders.length === 0 ? (
+            <div className="empty-line">
+              Nothing on the horizon. Forward a text or email and I'll hold onto the date.
+            </div>
+          ) : (
+            <>
+              <div className="card-label">
+                {upcomingReminder.kind === "birthday" ? "Coming up" : "Running low"}
+              </div>
+              <div className="card-main">{upcomingReminder.label}</div>
+              {upcomingReminder.date && (
+                <div className="card-sub">{upcomingReminder.date}</div>
+              )}
+            </>
+          )}
+          <button className="btn-ghost small" onClick={() => setView("remember")}>
+            View all ({store.reminders.length})
+          </button>
+        </div>
+      </Section>
+
+      <Section eyebrow="A small opening" title={null}>
+        <div className="card nudge-card">
+          {loadingNudge ? (
+            <div className="skeleton-line" />
+          ) : nudgeState.done ? (
+            <div className="nudge-done">
+              <span className="check-mark">✓</span> Done for today. That counts.
+            </div>
+          ) : (
+            <>
+              <div className="card-main serif">{nudge}</div>
+
+              {!showNudgeOptions ? (
+                <div className="card-actions">
+                  <button className="btn-primary" onClick={() => markNudge(true)}>
+                    I did this
+                  </button>
+                  <button className="btn-ghost" onClick={() => markNudge(false)}>
+                    Not today
+                  </button>
+                  <button className="btn-ghost" onClick={() => setShowNudgeOptions(true)}>
+                    Try a different kind
+                  </button>
+                </div>
+              ) : (
+                <div className="option-row">
+                  {NUDGE_DIRECTIONS.map((d) => (
+                    <button
+                      key={d.key}
+                      className="btn-chip"
+                      onClick={() => fetchNudge(d.key)}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Section>
+
+      <Section eyebrow="Need a minute?">
+        <div className="card break-card" onClick={openBreath}>
+          <div className="card-main">Take a 60-second break instead</div>
+          <div className="card-sub">Before you open something else, try this.</div>
+        </div>
+      </Section>
+
+      {store.streak > 0 && (
+        <div className="streak-footer">
+          <Pill>{store.streak} day{store.streak === 1 ? "" : "s"} of small openings</Pill>
+        </div>
+      )}
+    </>
+  );
+}
+
+function RememberPage({ store, setStore, setView }) {
+  const [text, setText] = useState("");
+  const [parsing, setParsing] = useState(false);
+
+  const addFromText = async () => {
+    if (!text.trim()) return;
+    setParsing(true);
+    const prompt = `Extract a single reminder from this forwarded message. It could be a birthday, an appointment, or something to restock.
+Message: """${text}"""
+Respond ONLY with JSON: {"label": "<short description>", "date": "<MM-DD or null>", "kind": "birthday|appointment|restock|other"}`;
+    const responseText = await askClaude(prompt);
+    const parsed = tryParseJSON(responseText);
+    if (parsed) {
+      setStore((s) => {
+        s.reminders.unshift({
+          id: "r" + Date.now(),
+          label: parsed.label || text.slice(0, 40),
+          date: parsed.date || null,
+          kind: parsed.kind || "other",
+        });
+      });
+      setText("");
+    }
+    setParsing(false);
+  };
+
+  const remove = (id) => {
+    setStore((s) => {
+      s.reminders = s.reminders.filter((r) => r.id !== id);
+    });
+  };
+
+  return (
+    <>
+      <div className="page-header">
+        <button className="btn-back" onClick={() => setView("today")}>
+          ← Today
+        </button>
+        <h1 className="page-title">What I'm holding onto</h1>
+      </div>
+
+      <Section>
+        <div className="card compose-card">
+          <textarea
+            className="compose-input"
+            placeholder="Paste a text, email, or just say it plainly — 'Dad's birthday is March 3rd' or 'running low on dish soap'"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+          />
+          <button className="btn-primary" onClick={addFromText} disabled={parsing}>
+            {parsing ? "Reading…" : "Remember this"}
+          </button>
+        </div>
+      </Section>
+
+      <Section eyebrow={`${store.reminders.length} things`}>
+        <div className="reminder-list">
+          {store.reminders.map((r) => (
+            <div className="reminder-row" key={r.id}>
+              <div>
+                <div className="reminder-label">{r.label}</div>
+                <div className="reminder-meta">
+                  {r.kind}
+                  {r.date ? ` · ${r.date}` : ""}
+                </div>
+              </div>
+              <button className="btn-icon" onClick={() => remove(r.id)} aria-label="Remove">
+                ×
+              </button>
+            </div>
+          ))}
+          {store.reminders.length === 0 && (
+            <div className="empty-line">Nothing yet. Add something above.</div>
+          )}
+        </div>
+      </Section>
+    </>
+  );
+}
+
+function BreathOverlay({ onClose }) {
+  const [phase, setPhase] = useState("in"); // in, hold, out
+  const [seconds, setSeconds] = useState(4);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSeconds((s) => {
+        if (s <= 1) {
+          setPhase((p) => (p === "in" ? "hold" : p === "hold" ? "out" : "in"));
+          return 4;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const label = phase === "in" ? "Breathe in" : phase === "hold" ? "Hold" : "Breathe out";
+
+  return (
+    <div className="overlay">
+      <div className="breath-wrap">
+        <div className={`breath-circle ${phase}`} />
+        <div className="breath-label">{label}</div>
+        <div className="breath-count">{seconds}</div>
+        <button className="btn-ghost light" onClick={onClose}>
+          Back to today
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- App shell ----------
+export default function App() {
+  const [store, setStore] = useStore();
+  const [view, setView] = useState("today");
+  const [breathing, setBreathing] = useState(false);
+
+  return (
+    <div className="app-root">
+      <style>{css}</style>
+
+      <div className="app-frame">
+        <header className="app-header">
+          <div className="brand">
+            <span className="brand-mark" />
+            Check In
+          </div>
+        </header>
+
+        <main className="app-main">
+          {view === "today" && (
+            <TodayPage
+              store={store}
+              setStore={setStore}
+              openBreath={() => setBreathing(true)}
+              view={view}
+              setView={setView}
+            />
+          )}
+          {view === "remember" && (
+            <RememberPage store={store} setStore={setStore} setView={setView} />
+          )}
+        </main>
+      </div>
+
+      {breathing && <BreathOverlay onClose={() => setBreathing(false)} />}
+    </div>
+  );
+}
+
+// ---------- Styles ----------
+const css = `
+:root {
+  --indigo: #2B2A4C;
+  --lavender: #8B87A8;
+  --paper: #F7F4EF;
+  --coral: #E8896B;
+  --sage: #8FA888;
+  --line: #E2DDD3;
+}
+
+* { box-sizing: border-box; }
+
+.app-root {
+  min-height: 100vh;
+  background: var(--paper);
+  display: flex;
+  justify-content: center;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--indigo);
+  padding: 0;
+}
+
+.app-frame {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.app-header {
+  padding: 24px 24px 8px;
+}
+
+.brand {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--lavender);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-style: italic;
+}
+
+.brand-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+  display: inline-block;
+}
+
+.app-main {
+  flex: 1;
+  padding: 8px 24px 48px;
+}
+
+.today-hero {
+  margin: 16px 0 32px;
+}
+
+.today-date {
+  font-size: 13px;
+  color: var(--lavender);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.today-heading {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 28px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--indigo);
+  line-height: 1.25;
+}
+
+.page-header {
+  margin: 16px 0 24px;
+}
+
+.btn-back {
+  background: none;
+  border: none;
+  color: var(--lavender);
+  font-size: 14px;
+  padding: 0;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.page-title {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 400;
+  margin: 0;
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--lavender);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.card {
+  background: #FFFFFF;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.card-label {
+  font-size: 12px;
+  color: var(--lavender);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-main {
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--indigo);
+  font-weight: 500;
+}
+
+.card-main.serif {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  font-size: 19px;
+}
+
+.card-sub {
+  font-size: 14px;
+  color: var(--lavender);
+  margin-top: 6px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.btn-primary {
+  background: var(--indigo);
+  color: var(--paper);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-primary:hover { background: #3a3968; }
+
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--indigo);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-ghost.small {
+  padding: 6px 12px;
+  font-size: 13px;
+  margin-top: 14px;
+}
+
+.btn-ghost.light {
+  border-color: rgba(255,255,255,0.3);
+  color: #fff;
+}
+
+.btn-ghost:hover { border-color: var(--lavender); }
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.btn-chip {
+  background: #F1EEE7;
+  border: 1px solid var(--line);
+  color: var(--indigo);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-chip:hover {
+  background: #E8896B;
+  border-color: #E8896B;
+  color: #fff;
+}
+
+.reminder-card {
+  position: relative;
+}
+
+.break-card {
+  cursor: pointer;
+  border-color: var(--sage);
+  background: #FBFCFA;
+}
+
+.break-card:hover { border-color: var(--sage); background: #F5F8F3; }
+
+.nudge-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--sage);
+  font-size: 15px;
+  padding: 6px 0;
+}
+
+.check-mark {
+  font-size: 18px;
+}
+
+.skeleton-line {
+  height: 18px;
+  background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
+  border-radius: 6px;
+  width: 70%;
+}
+
+.empty-line {
+  color: var(--lavender);
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.streak-footer {
+  text-align: center;
+  margin-top: 8px;
+}
+
+.pill {
+  display: inline-block;
+  background: #EFEAE0;
+  color: var(--indigo);
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.compose-card { display: flex; flex-direction: column; gap: 12px; }
+
+.compose-input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  color: var(--indigo);
+}
+
+.compose-input:focus { outline: none; border-color: var(--lavender); }
+
+.reminder-list { display: flex; flex-direction: column; gap: 10px; }
+
+.reminder-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.reminder-label { font-size: 14px; font-weight: 500; }
+.reminder-meta { font-size: 12px; color: var(--lavender); margin-top: 2px; text-transform: capitalize; }
+
+.btn-icon {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--lavender);
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.breath-wrap {
+  text-align: center;
+  color: #fff;
+}
+
+.breath-circle {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--coral), var(--lavender));
+  margin: 0 auto 28px;
+  transition: transform 4s ease-in-out;
+}
+
+.breath-circle.in { transform: scale(1.3); }
+.breath-circle.hold { transform: scale(1.3); }
+.breath-circle.out { transform: scale(0.8); }
+
+.breath-label {
+  font-family: Georgia, serif;
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+
+.breath-count {
+  font-size: 14px;
+  opacity: 0.6;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 400px) {
+  .today-heading { font-size: 24px; }
+}
+`;
